@@ -113,7 +113,7 @@ namespace MonoDevelop.Android
 
                             for (int i = 0; i < paramInfo.Length; i++)
                             {
-                                args.AppendFormat("{0} {1}", paramInfo[i].ParameterType.FullName, paramInfo[i].Name);
+                                args.AppendFormat("{0} {1}", GetJLangType(paramInfo[i].ParameterType), paramInfo[i].Name);
                                 if (i < paramInfo.Length - 1)
                                     args.Append(",");
                             }
@@ -152,7 +152,7 @@ namespace MonoDevelop.Android
             {
                 foreach (var attrib in currentSuper.GetCustomAttributes(false))
                 {
-                    if (attrib.GetType().FullName == "net.sf.jni4net.attributes.JavaClassAttribute")
+                    if (attrib.GetType().FullName == "MonoJavaBridge.JavaClassAttribute")
                         return sup;
                 }
             }
@@ -169,7 +169,7 @@ namespace MonoDevelop.Android
                 {
                     foreach (var attrib in t.GetCustomAttributes(false))
                     {
-                        if (attrib.GetType().FullName == "net.sf.jni4net.attributes.JavaInterfaceAttribute")
+                        if (attrib.GetType().FullName == "MonoJavaBridge.JavaInterfaceAttribute")
                         {
                             Console.WriteLine("Match: {0}", sup);
                             return sup;
