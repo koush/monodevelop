@@ -5,6 +5,6 @@
   <Assembly name="System.Core" version="4.0.0.0" publicKeyToken="b77a5c561934e089" />
   <Assembly name="System.Xml" version="4.0.0.0" publicKeyToken="b77a5c561934e089" />
   <Assembly name="android" />
-  <Assembly name="jni4net.n-0.8.1.0" />
+  <Assembly name="MonoJavaBridge" />
 </Assemblies>
 </TargetFramework>
