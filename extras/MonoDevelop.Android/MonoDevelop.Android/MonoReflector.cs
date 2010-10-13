@@ -7,6 +7,24 @@ using System.Text;
 
 namespace MonoDevelop.Android
 {
+	public static class Program
+	{
+		public static void Main(string[] args)
+		{
+			if (args.Length != 2)
+			{
+				Console.Error.WriteLine("mono MonoDevelop.Android.dll <InputAssembly> <OutputDirectory>");
+				return;
+			}
+			
+			var mr = new MonoReflector(args[1]);
+			foreach (var file in mr.Generate(GenerationFlags.None, args[0]))
+			{
+				Console.WriteLine(file);
+			}
+		}
+	}
+	
     [Flags]
     public enum GenerationFlags : int
     {
@@ -67,7 +85,6 @@ namespace MonoDevelop.Android
                     HashSet<Type> interfaces = new HashSet<Type>();
                     foreach (MethodInfo subm in t.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Where(x => x.IsVirtual))
                     {
-                        Console.WriteLine(subm);
                         if ((subm.MemberType & MemberTypes.Property) == MemberTypes.Property || (subm.MemberType & MemberTypes.Method) == MemberTypes.Method)
                         {
                             MethodInfo androidMethod = FindBaseForMethod(subm, null);
@@ -170,10 +187,7 @@ namespace MonoDevelop.Android
                     foreach (var attrib in t.GetCustomAttributes(false))
                     {
                         if (attrib.GetType().FullName == "MonoJavaBridge.JavaInterfaceAttribute")
-                        {
-                            Console.WriteLine("Match: {0}", sup);
                             return sup;
-                        }
                     }
                 }
             }

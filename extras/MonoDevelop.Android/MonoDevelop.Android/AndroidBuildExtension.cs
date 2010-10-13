@@ -38,7 +38,7 @@ namespace MonoDevelop.Android
             var conf = proj.GetConfiguration(configuration) as AndroidProjectConfiguration;
             
             var buildResult = base.Build (monitor, item, configuration);
-            if (buildResult.ErrorCount > 0);
+            if (buildResult.ErrorCount > 0)
             {
                 foreach (var err in buildResult.Errors)
                 {
@@ -47,11 +47,13 @@ namespace MonoDevelop.Android
                 }
             }
             
+			/*
             MonoReflectorContext ctx = new MonoReflectorContext();
             var javaProjDir = Path.Combine(proj.ItemDirectory.ToString(), "Android");
             var javaSrcDir = ctx.OutputDirectory = Path.Combine(javaProjDir, "src");
             ctx.AssemblyFile = conf.CompiledOutputName;
             monitor.BeginTask("Generating Java files.", 0);
+			
             AppDomain other = AppDomain.CreateDomain("other");
             try   
             {
@@ -62,13 +64,33 @@ namespace MonoDevelop.Android
             {
                 AppDomain.Unload(other);
             }
-            monitor.EndTask();
             foreach (var outputFile in ctx.OutputFiles)
             {
                 if (null == proj.GetProjectFile(outputFile))
                     proj.AddFile(outputFile);
             }
-            
+			monitor.EndTask();
+            */
+			
+            monitor.BeginTask("Generating Java files.", 0);
+            var javaProjDir = Path.Combine(proj.ItemDirectory.ToString(), "Android");
+            var javaSrcDir = Path.Combine(javaProjDir, "src");
+			var thisAssembly = System.Reflection.Assembly.GetExecutingAssembly().Location;
+			var monoReflectorArgs = thisAssembly + " " + conf.CompiledOutputName + " " + javaSrcDir;
+            var monoReflectorProcInfo = new ProcessStartInfo("mono", monoReflectorArgs);
+            monoReflectorProcInfo.WorkingDirectory = javaProjDir;
+            monoReflectorProcInfo.RedirectStandardOutput = true;
+            monoReflectorProcInfo.UseShellExecute = false;
+            var monoReflectorProc = Process.Start(monoReflectorProcInfo);
+			string javaOutputFile;
+			while (null != (javaOutputFile = monoReflectorProc.StandardOutput.ReadLine()))
+			{
+	            monitor.Log.WriteLine(javaOutputFile);
+                if (null == proj.GetProjectFile(javaOutputFile))
+                    proj.AddFile(javaOutputFile);
+			}
+            monitor.EndTask();
+			
             var cfg = Config.Load();
             
             var androidPath = Path.Combine(cfg.AndroidSDK, "tools/android");

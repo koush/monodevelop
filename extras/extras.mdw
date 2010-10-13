@@ -16,5 +16,6 @@
     <Item>MonoDevelop.Debugger.Win32/MonoDevelop.Debugger.Win32.sln</Item>
     <Item>MonoDevelop.MeeGo/MonoDevelop.MeeGo.sln</Item>
     <Item>MonoDevelop.MonoMac/MonoDevelop.MonoMac.sln</Item>
+    <Item>MonoDevelop.Android/MonoDevelop.Android.sln</Item>
   </Items>
 </WorkspaceItem>
