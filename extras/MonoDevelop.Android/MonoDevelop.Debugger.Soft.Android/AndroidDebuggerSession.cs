@@ -26,7 +26,9 @@ namespace MonoDevelop.Debugger.Soft.Android
 			
 			var cmd = dsi.ExecutionCommand;
 			StartSimulatorProcess (cmd);
-			StartListening (dsi);
+			// terrible hack to ensure that the remote listener starts first.
+			System.Threading.Thread.Sleep(1000);
+			Connect(dsi);
 		}
 		
 		void TouchUploadMarker (FilePath markerFile)
@@ -49,7 +51,6 @@ namespace MonoDevelop.Debugger.Soft.Android
 			EndSimProcess ();
 		}
 
-		//FIXME: hook up the app's stdin and stdout
 		void StartSimulatorProcess (AndroidExecutionCommand cmd)
 		{
 			string adbPath = Path.Combine(AndroidSDKInstalledCondition.ANDROID_SDK, "tools/adb");
@@ -69,8 +70,15 @@ namespace MonoDevelop.Debugger.Soft.Android
                 var antProc = Process.Start(antProcInfo);
                 antProc.WaitForExit();
 
-                var monoDebuggerOptions = string.Format("transport=dt_socket,address={0}:{1}", debuggerStartInfo.Address, debuggerStartInfo.DebugPort);
-                string adbShellArgs = string.Format("shell 'am start -a android.intent.action.MAIN -n {0}/{0}.MonoActivity --es mono_debugger_agent_options \"{1}\" ; sleep -1  | /data/data/com.koushikdutta.mono/fwdstdin {2} {3}'", cmd.DefaultNamespace, monoDebuggerOptions, debuggerStartInfo.Address, debuggerStartInfo.OutputPort);
+                var adbForwardArgs = string.Format("forward tcp:{0} tcp:{0}", debuggerStartInfo.DebugPort);
+                var adbForwardProcInfo = new ProcessStartInfo(adbPath, adbForwardArgs);
+                adbForwardProcInfo.WorkingDirectory = cmd.JavaProjectPath;
+                adbForwardProcInfo.UseShellExecute = false;
+                var adbForwardProc = Process.Start(adbForwardProcInfo);
+                adbForwardProc.WaitForExit();
+
+                var monoDebuggerOptions = string.Format("transport=dt_socket,server=y,address={0}:{1}", "127.0.0.1" /*debuggerStartInfo.Address*/, debuggerStartInfo.DebugPort);
+                string adbShellArgs = string.Format("shell 'am start -a android.intent.action.MAIN -n {0}/{0}.MonoActivity --es mono_debugger_agent_options \"{1}\"'", cmd.DefaultNamespace, monoDebuggerOptions, debuggerStartInfo.Address, debuggerStartInfo.OutputPort);
                 Console.WriteLine(adbShellArgs);
 
                 var psi = new ProcessStartInfo (adbPath, adbShellArgs) {
@@ -91,11 +99,19 @@ namespace MonoDevelop.Debugger.Soft.Android
             }
             else
             {
+                var adbForwardArgs = string.Format("forward tcp:10000 tcp:{0}", debuggerStartInfo.DebugPort);
+                var adbForwardProcInfo = new ProcessStartInfo(adbPath, adbForwardArgs);
+                adbForwardProcInfo.WorkingDirectory = cmd.JavaProjectPath;
+                adbForwardProcInfo.UseShellExecute = false;
+                var adbForwardProc = Process.Start(adbForwardProcInfo);
+                adbForwardProc.WaitForExit();
+
                 string adbPushArgs = string.Format("push {0}/ /data/local/bin", cmd.LogDirectory);
                 System.Diagnostics.Process.Start(adbPath, adbPushArgs).WaitForExit();
     
                 string outputFile = Path.GetFileName(cmd.OutputAssembly);
-                string adbShellArgs = String.Format ("shell '/data/data/com.koushikdutta.mono/mono --debugger-agent=transport=dt_socket,address={0}:{1} /data/local/bin/{2} | /data/data/com.koushikdutta.mono/fwdstdin {0} {3}'", debuggerStartInfo.Address, debuggerStartInfo.DebugPort, outputFile, debuggerStartInfo.OutputPort);
+                //string adbShellArgs = String.Format ("shell '/data/data/com.koushikdutta.mono/mono --debugger-agent=transport=dt_socket,server=y,address={0}:{1} /data/local/bin/{2} | /data/data/com.koushikdutta.mono/fwdstdin {0} {3}'", "127.0.0.1" /*debuggerStartInfo.Address*/, debuggerStartInfo.DebugPort, outputFile, debuggerStartInfo.OutputPort);
+                string adbShellArgs = String.Format ("shell '/data/data/com.koushikdutta.mono/mono --debugger-agent=transport=dt_socket,server=y,address={0}:{1} /data/local/bin/{2}'", "127.0.0.1" /*debuggerStartInfo.Address*/, debuggerStartInfo.DebugPort, outputFile, debuggerStartInfo.OutputPort);
                 Console.WriteLine(adbShellArgs);
                 var psi = new ProcessStartInfo () {
                     FileName = adbPath,

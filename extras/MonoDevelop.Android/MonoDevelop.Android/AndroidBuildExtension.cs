@@ -169,6 +169,7 @@ namespace MonoDevelop.Android
 		{
 			get
 			{
+				return System.Net.IPAddress.Loopback;
 				var ipStr = MonoDevelop.Core.PropertyService.Get<string> ("Android.Debugger.HostIP", "");
                 Console.WriteLine("Android.Debugger.HostIP: {0}", ipStr);
 				try {
@@ -192,15 +193,20 @@ namespace MonoDevelop.Android
 			}
 		}
 		
+		static Random random = new Random();
 		public static int DebuggerPort {
 			get {
-				return MonoDevelop.Core.PropertyService.Get<int> ("Android.Debugger.Port", 10000);
+			    //return 10000;
+			    return random.Next(10000, 20000);
+				//return MonoDevelop.Core.PropertyService.Get<int> ("Android.Debugger.Port", 10000);
 			}
 		}
 		
 		public static int DebuggerOutputPort {
 			get {
-				return MonoDevelop.Core.PropertyService.Get<int> ("Android.Debugger.OutputPort", 10001);
+		        //return 10001;
+		        return random.Next(10000, 20000);
+				//return MonoDevelop.Core.PropertyService.Get<int> ("Android.Debugger.OutputPort", 10001);
 			}
 		}
 	}
