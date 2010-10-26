@@ -3,14 +3,14 @@
 import com.koushikdutta.monojavabridge.MonoBridge;
 import com.koushikdutta.monojavabridge.MonoProxy;
 
-public class {1}{2}{3} implements MonoProxy{6}
+public class {1} extends {2} implements MonoProxy{5}
 {{
 	static
 	{{
-{4}
+{3}
 	}}
 
-{5}
+{4}
 
 	long myGcHandle;
 	public long getGCHandle() {{

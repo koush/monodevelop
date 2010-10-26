@@ -31,7 +31,7 @@ namespace MonoDevelop.Android
         None = 0,
         KeepIntermediateFiles = 1
     }
-    
+
     public class MonoReflector
     {
         private string mOutputPath;
@@ -79,84 +79,94 @@ namespace MonoDevelop.Android
             List<string> ret = new List<string>();
             foreach (Type t in assembly.GetTypes())
             {
-                if (!t.IsInterface)
+                if (t.IsInterface)
+                    continue;
+                if ((from attr in t.GetCustomAttributes(false) where attr.GetType().FullName == "MonoJavaBridge.JavaClassAttribute" || attr.GetType().FullName == "MonoJavaBridge.JavaProxyAttribute" select attr).Count() != 0)
+                    continue;
+                Dictionary<MethodInfo, MethodInfo> methods = new Dictionary<MethodInfo, MethodInfo>();
+                HashSet<Type> interfaces = new HashSet<Type>();
+                foreach (MethodInfo subm in t.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Where(x => x.IsVirtual))
                 {
-                    Dictionary<MethodInfo, MethodInfo> methods = new Dictionary<MethodInfo, MethodInfo>();
-                    HashSet<Type> interfaces = new HashSet<Type>();
-                    foreach (MethodInfo subm in t.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Where(x => x.IsVirtual))
+                    if ((subm.MemberType & MemberTypes.Property) == MemberTypes.Property || (subm.MemberType & MemberTypes.Method) == MemberTypes.Method)
                     {
-                        if ((subm.MemberType & MemberTypes.Property) == MemberTypes.Property || (subm.MemberType & MemberTypes.Method) == MemberTypes.Method)
+                        MethodInfo androidMethod = FindBaseForMethod(subm, null);
+                        if (androidMethod != null)
                         {
-                            MethodInfo androidMethod = FindBaseForMethod(subm, null);
+                            methods.Add(subm, androidMethod);
+                        }
+                        else//must be implementing an interface
+                        {
+                            androidMethod = FindInterfaceForMethod(subm);
                             if (androidMethod != null)
                             {
+                                if (!interfaces.Contains(androidMethod.DeclaringType))
+                                    interfaces.Add(androidMethod.DeclaringType);
                                 methods.Add(subm, androidMethod);
                             }
-                            else//must be implementing an interface
-                            {
-                                androidMethod = FindInterfaceForMethod(subm);
-                                if (androidMethod != null)
-                                {
-                                    if (!interfaces.Contains(androidMethod.DeclaringType))
-                                        interfaces.Add(androidMethod.DeclaringType);
-                                    methods.Add(subm, androidMethod);
-                                }
-                            }
                         }
-                    }
-                    if (methods.Count > 0)
-                    {
-                        StringBuilder linkMethods = new StringBuilder(), natives = new StringBuilder();
-                        //get the link methods
-
-                        KeyValuePair<MethodInfo, MethodInfo>? first = null;
-                        foreach (KeyValuePair<MethodInfo, MethodInfo> pair in methods)
-                        {
-                            if (first == null)
-                                first = pair;
-                            StringBuilder args = new StringBuilder(), jniArgs = new StringBuilder();
-                            ParameterInfo[] paramInfo = null;
-                            foreach (ParameterInfo p in paramInfo = pair.Key.GetParameters())
-                                jniArgs.Append(GetJType(p.ParameterType, true, true));
-                            for (int i = 0; i < paramInfo.Length; i++)
-                            {
-                                args.Append(paramInfo[i].ParameterType.FullName);
-                                if (i < paramInfo.Length - 1)
-                                    args.Append(",");
-                            }
-                            linkMethods.AppendLine(string.Format("\t\tMonoBridge.link({0}.class, \"{1}\", \"({2}){3}\", \"{4}\");",
-                                t.Name, pair.Key.Name, jniArgs, GetJType(pair.Key.ReturnType, true, true), args));
-                            args = new StringBuilder();//reuse var
-
-                            for (int i = 0; i < paramInfo.Length; i++)
-                            {
-                                args.AppendFormat("{0} {1}", GetJLangType(paramInfo[i].ParameterType), paramInfo[i].Name);
-                                if (i < paramInfo.Length - 1)
-                                    args.Append(",");
-                            }
-                            natives.AppendLine("\t@Override");
-                            natives.AppendLine(string.Format("\t{0} native {1} {2}({3});",
-                                pair.Key.IsPublic ? "public" : "protected", GetJLangType(pair.Value.ReturnType), pair.Key.Name, args));
-                        }
-                        string basePath = mOutputPath ?? Path.GetDirectoryName(t.Assembly.Location);
-                        basePath = Path.Combine(basePath, t.Namespace.Replace('.', Path.DirectorySeparatorChar));
-                        Directory.CreateDirectory(basePath);
-                        string outputFile = Path.Combine(basePath, t.Name + ".java");
-                        ret.Add(outputFile);
-                        StringBuilder interfacesText = new StringBuilder();
-                        if (interfaces.Count > 0)
-                        {
-                            foreach (var iface in interfaces)
-                            {
-                                interfacesText.AppendFormat(", {0}", iface.FullName.Replace('+', '.'));
-                            }
-                        }
-                        File.WriteAllText(outputFile,
-                            string.Format(mTemplate, t.Namespace, t.Name, " extends ", t.BaseType, linkMethods, natives, interfacesText.ToString()));
                     }
                 }
+
+                if (methods.Count == 0)
+                    continue;
+
+                StringBuilder linkMethods = new StringBuilder(), natives = new StringBuilder();
+                //get the link methods
+
+                var proxyName = GetNestedClassProxyName(t);
+                KeyValuePair<MethodInfo, MethodInfo>? first = null;
+                foreach (KeyValuePair<MethodInfo, MethodInfo> pair in methods)
+                {
+                    if (first == null)
+                        first = pair;
+                    StringBuilder args = new StringBuilder(), jniArgs = new StringBuilder();
+                    ParameterInfo[] paramInfo = null;
+                    foreach (ParameterInfo p in paramInfo = pair.Key.GetParameters())
+                        jniArgs.Append(GetJType(p.ParameterType));
+                    for (int i = 0; i < paramInfo.Length; i++)
+                    {
+                        args.Append(paramInfo[i].ParameterType.FullName);
+                        if (i < paramInfo.Length - 1)
+                            args.Append(",");
+                    }
+                    linkMethods.AppendLine(string.Format("\t\tMonoBridge.link({0}.class, \"{1}\", \"({2}){3}\", \"{4}\");",
+                        proxyName, pair.Key.Name, jniArgs, GetJType(pair.Key.ReturnType), args));
+                    args = new StringBuilder();//reuse var
+
+                    for (int i = 0; i < paramInfo.Length; i++)
+                    {
+                        args.AppendFormat("{0} {1}", GetJLangType(paramInfo[i].ParameterType), paramInfo[i].Name);
+                        if (i < paramInfo.Length - 1)
+                            args.Append(",");
+                    }
+                    natives.AppendLine("\t@Override");
+                    natives.AppendLine(string.Format("\t{0} native {1} {2}({3});",
+                        pair.Key.IsPublic ? "public" : "protected", GetJLangType(pair.Value.ReturnType), pair.Key.Name, args));
+                }
+                string basePath = mOutputPath ?? Path.GetDirectoryName(t.Assembly.Location);
+                basePath = Path.Combine(basePath, t.Namespace.Replace('.', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(basePath);
+                string outputFile = Path.Combine(basePath, proxyName + ".java");
+                ret.Add(outputFile);
+                StringBuilder interfacesText = new StringBuilder();
+                if (interfaces.Count > 0)
+                {
+                    foreach (var iface in interfaces)
+                    {
+                        interfacesText.AppendFormat(", {0}", iface.FullName.Replace('+', '.').Replace('_', '.'));
+                    }
+                }
+                File.WriteAllText(outputFile,
+                    string.Format(mTemplate, t.Namespace, proxyName, t.BaseType, linkMethods, natives, interfacesText.ToString()));
             }
             return ret.ToArray();
+        }
+
+        public string GetNestedClassProxyName(Type type)
+        {
+            if (type.DeclaringType == null)
+                return type.Name;
+            return GetNestedClassProxyName(type.DeclaringType) + "_" + type.Name;
         }
 
         private MethodInfo FindBaseForMethod(MethodInfo sub, Type currentSuper)
@@ -194,7 +204,7 @@ namespace MonoDevelop.Android
             return null;
         }
 
-        private string GetJType(Type type, bool replace, bool jniClasses)
+        private string GetJType(Type type)
         {
             string value = string.Empty;
             if (type == typeof(bool))
@@ -216,37 +226,52 @@ namespace MonoDevelop.Android
             else if (type == typeof(void))
                 value = "V";
             else
-                value = jniClasses ? "L" + type.FullName + ";" : type.FullName;
+                value = "L" + type.FullName + ";";
             if (type.IsArray)
                 value = "[" + value;
-            return replace ? value.Replace('.', '/') : value;
+            return value.Replace('.', '/').Replace('+', '$').Replace('_', '$');
         }
 
         private string GetJLangType(Type type)
         {
-            switch (type.FullName)
+            int elementTypeIndex = type.FullName.IndexOf('[');
+            string elementType = elementTypeIndex == -1 ? type.FullName : type.FullName.Substring(0, elementTypeIndex);
+            string remainder = elementTypeIndex == -1 ? string.Empty : type.FullName.Substring(elementTypeIndex);
+            string convert;
+            switch (elementType)
             {
                 case "System.Boolean":
-                    return "boolean";
+                    convert = "boolean";
+                    break;
                 case "System.Byte":
-                    return "byte";
+                    convert = "byte";
+                    break;
                 case "System.Char":
-                    return "char";
+                    convert = "char";
+                    break;
                 case "System.Int16":
-                    return "short";
+                    convert = "short";
+                    break;
                 case "System.Int32":
-                    return "int";
+                    convert = "int";
+                    break;
                 case "System.Int64":
-                    return "long";
+                    convert = "long";
+                    break;
                 case "System.Single":
-                    return "float";
+                    convert = "float";
+                    break;
                 case "System.Double":
-                    return "double";
+                    convert = "double";
+                    break;
                 case "System.Void":
-                    return "void";
+                    convert = "void";
+                    break;
                 default:
-                    return type.FullName;
+                    convert = elementType.Replace('+', '.').Replace('_', '.');
+                    break;
             }
+            return convert + remainder;
         }
     }
 }
