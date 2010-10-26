@@ -26,9 +26,7 @@ namespace MonoDevelop.Debugger.Soft.Android
 			
 			var cmd = dsi.ExecutionCommand;
 			StartSimulatorProcess (cmd);
-			// terrible hack to ensure that the remote listener starts first.
-			System.Threading.Thread.Sleep(1000);
-			Connect(dsi);
+			StartConnecting(dsi, 5, 1000);
 		}
 		
 		void TouchUploadMarker (FilePath markerFile)
