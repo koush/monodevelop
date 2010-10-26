@@ -98,11 +98,22 @@ namespace MonoDevelop.Android
             Process.Start(androidPath, args).WaitForExit();
             
             var assetsDir = Path.Combine(javaProjDir, "assets");
+			var dlls = Directory.GetFiles(conf.OutputDirectory, "*.dll");
+			var exes = Directory.GetFiles(conf.OutputDirectory, "*.exe");
+			var mdbs = Directory.GetFiles(conf.OutputDirectory, "*.mdb");
+			var packagedFiles = dlls.Union(mdbs).Union(exes);
+			foreach (var packageFile in packagedFiles)
+			{
+				Console.WriteLine(packageFile);
+				File.Copy(packageFile, Path.Combine(assetsDir, Path.GetFileName(packageFile)), true);
+			}
+			/*
             var packagedAssembly = Path.Combine(assetsDir, Path.GetFileName(conf.CompiledOutputName));
             File.Copy(conf.CompiledOutputName, packagedAssembly, true);
             var mdb = conf.CompiledOutputName + ".mdb";
             var packagedMdb = Path.Combine(assetsDir, Path.GetFileName(mdb));
             File.Copy(mdb, packagedMdb, true);
+            */
 
             var androidmonoDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), ".androidmono");
             var monojavabridgejar = Path.Combine(androidmonoDir, "com.koushikdutta.monojavabridge.jar");
