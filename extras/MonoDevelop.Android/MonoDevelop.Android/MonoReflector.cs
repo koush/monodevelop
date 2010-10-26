@@ -157,10 +157,27 @@ namespace MonoDevelop.Android
                     }
                 }
                 File.WriteAllText(outputFile,
-                    string.Format(mTemplate, t.Namespace, proxyName, t.BaseType, linkMethods, natives, interfacesText.ToString()));
+                    string.Format(mTemplate, t.Namespace, proxyName, t.BaseType.FullName == "java.lang.Object" ? "com.koushikdutta.monojavabridge.MonoProxyBase" : t.BaseType.FullName, linkMethods, natives, interfacesText.ToString(), t.BaseType.FullName == "java.lang.Object" ? string.Empty : mProxyImplementation));
             }
             return ret.ToArray();
         }
+		
+		private static readonly string mProxyImplementation = @"
+	long myGCHandle;
+	public long getGCHandle() {{
+		return myGCHandle;
+	}}
+
+	public void setGCHandle(long gcHandle) {{
+		myGCHandle = gcHandle;
+	}}
+
+	@Override
+	protected void finalize() throws Throwable {{
+	    super.finalize();
+	    MonoBridge.releaseGCHandle(myGCHandle);
+	}}
+";
 
         public string GetNestedClassProxyName(Type type)
         {

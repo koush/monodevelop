@@ -12,12 +12,5 @@ public class {1} extends {2} implements MonoProxy{5}
 
 {4}
 
-	long myGcHandle;
-	public long getGCHandle() {{
-		return myGcHandle;
-	}}
-
-	public void setGCHandle(long gcHandle) {{
-		myGcHandle = gcHandle;
-	}}
+{6}
 }}
