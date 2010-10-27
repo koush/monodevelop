@@ -162,8 +162,6 @@ namespace Mono.Debugging.Soft
 					var sx = ex as SocketException;
 					if (sx != null)
 						retry = sx.ErrorCode == 10061; //connection refused
-					if (ex is IOException)
-					    retry = true;
 					
 					if (!retry || maxAttempts == 1 || Exited) {
 						OnConnectionError (ex);
