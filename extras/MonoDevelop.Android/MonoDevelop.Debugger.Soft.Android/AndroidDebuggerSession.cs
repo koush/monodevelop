@@ -28,7 +28,14 @@ namespace MonoDevelop.Debugger.Soft.Android
 			StartSimulatorProcess (cmd);
 			StartConnecting(dsi, 5, 1000);
 		}
-		
+
+		protected override bool ShouldRetryConnection (Exception ex, int attemptNumber)
+		{
+			if (base.ShouldRetryConnection (ex, attemptNumber))
+				return true;
+			return ex is IOException;
+		}
+
 		void TouchUploadMarker (FilePath markerFile)
 		{
 			if (File.Exists (markerFile))
