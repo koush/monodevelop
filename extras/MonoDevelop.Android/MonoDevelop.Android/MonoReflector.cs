@@ -113,7 +113,7 @@ namespace MonoDevelop.Android
                 StringBuilder linkMethods = new StringBuilder(), natives = new StringBuilder();
                 //get the link methods
 
-                var proxyName = GetNestedClassProxyName(t);
+                var proxyName = GetClassProxyName(t);
                 KeyValuePair<MethodInfo, MethodInfo>? first = null;
                 foreach (KeyValuePair<MethodInfo, MethodInfo> pair in methods)
                 {
@@ -144,7 +144,10 @@ namespace MonoDevelop.Android
                         pair.Key.IsPublic ? "public" : "protected", GetJLangType(pair.Value.ReturnType), pair.Key.Name, args));
                 }
                 string basePath = mOutputPath ?? Path.GetDirectoryName(t.Assembly.Location);
-                basePath = Path.Combine(basePath, t.Namespace.Replace('.', Path.DirectorySeparatorChar));
+                string proxyNamespace = t.Namespace;
+                if (proxyNamespace.StartsWith("java."))
+                    proxyNamespace = proxyNamespace.Replace("java.", "internal.java.");
+                basePath = Path.Combine(basePath, proxyNamespace.Replace('.', Path.DirectorySeparatorChar));
                 Directory.CreateDirectory(basePath);
                 string outputFile = Path.Combine(basePath, proxyName + ".java");
                 ret.Add(outputFile);
@@ -157,7 +160,7 @@ namespace MonoDevelop.Android
                     }
                 }
                 File.WriteAllText(outputFile,
-                    string.Format(mTemplate, t.Namespace, proxyName, t.BaseType.FullName == "java.lang.Object" ? "com.koushikdutta.monojavabridge.MonoProxyBase" : t.BaseType.FullName, linkMethods, natives, interfacesText.ToString(), t.BaseType.FullName == "java.lang.Object" ? string.Empty : mProxyImplementation));
+                    string.Format(mTemplate, proxyNamespace, proxyName, t.BaseType.FullName == "java.lang.Object" ? "com.koushikdutta.monojavabridge.MonoProxyBase" : t.BaseType.FullName, linkMethods, natives, interfacesText.ToString(), t.BaseType.FullName == "java.lang.Object" ? string.Empty : mProxyImplementation));
             }
             return ret.ToArray();
         }
@@ -179,11 +182,11 @@ namespace MonoDevelop.Android
 	}}
 ";
 
-        public string GetNestedClassProxyName(Type type)
+        public string GetClassProxyName(Type type)
         {
             if (type.DeclaringType == null)
                 return type.Name;
-            return GetNestedClassProxyName(type.DeclaringType) + "_" + type.Name;
+            return GetClassProxyName(type.DeclaringType) + "_" + type.Name;
         }
 
         private MethodInfo FindBaseForMethod(MethodInfo sub, Type currentSuper)
