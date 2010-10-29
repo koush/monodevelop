@@ -170,7 +170,7 @@ namespace Mono.Debugging.Soft
 					return;
 				} catch (Exception ex) {
 					attemptNumber++;
-					if (!ShouldRetryConnection(ex, maxAttempts) || attemptNumber >= maxAttempts || Exited) {
+					if (!ShouldRetryConnection(ex, attemptNumber) || attemptNumber == maxAttempts || Exited) {
 						OnConnectionError (ex);
 						return;
 					}
