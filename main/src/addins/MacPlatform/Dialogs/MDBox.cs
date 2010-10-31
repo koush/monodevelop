@@ -28,172 +28,123 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using MonoMac.AppKit;
+using System.Linq;
 
 namespace MonoDevelop.Platform.Mac
 {
-	class MDBox : IEnumerable<MDBoxChild>
+	class MDLabel : NSTextField
 	{
-		List<MDBoxChild> children = new List<MDBoxChild> ();
-		
-		public float Spacing { get; set; }
-		public MDBoxDirection Direction { get; set; }
-	//	public MDBoxHAlign HAlign { get; set; }
-	//	public MDBoxVAlign VAlign { get; set; }
-		
-		public MDBox (MDBoxDirection direction, float spacing)
+		public MDLabel (string text): base (new RectangleF (0, 6, 100, 20))
 		{
-			this.Direction = direction;
-			this.Spacing = spacing;
+			StringValue = text;
+			DrawsBackground = false;
+			Bordered = false;
+			Editable = false;
+			Selectable = false;
+		}
+	}
+	
+	interface IMDLayout : ILayout
+	{
+		NSView View { get; }
+	}
+	
+	class MDBox : LayoutBox, IMDLayout
+	{
+		bool ownsView = false;
+		
+		public MDBox (LayoutDirection direction, float spacing, float padding) : this (null, direction, spacing, padding)
+		{
 		}
 		
-		public int Count { get { return children.Count; } }
-		
-		bool IsHorizontal { get { return Direction == MDBoxDirection.Horizontal; } }
-		
-		public NSView CreateView ()
+		public MDBox (NSView unownedView, LayoutDirection direction, float spacing, float padding) : base (direction, spacing, padding)
 		{
-			float width = 0;
-			float height = 0;
-			bool resizable = false;
-			
-			//size controls to fit, expand to min size, calculate total dimensions
-			foreach (var child in children) {
-				var view = child.View;
-				var rect = view.Frame;
-				if (rect.Width < child.MinWidth)
-					rect.Width = child.MinWidth;
-				if (rect.Height < child.MinHeight)
-					rect.Height = child.MinHeight;
-				view.Frame = rect;
-				
-				float cwidth = rect.Width + child.PadRight + child.PadLeft;
-				float cheight = rect.Height + child.PadTop + child.PadBottom;
-				
-				if (IsHorizontal) {
-					if (width != 0)
-						width += Spacing;
-					width += cwidth;
-					height = Math.Max (height, cheight);
-					
-					if (child.Expand) {
-						resizable = true;
-						view.AutoresizingMask |= NSViewResizingMask.HeightSizable;
-					}
-				} else {
-					if (height != 0)
-						height += Spacing;
-					height += cheight;
-					width = Math.Max (width, cwidth);
-					
-					if (child.Expand) {
-						resizable = true;
-						view.AutoresizingMask |= NSViewResizingMask.WidthSizable;
-					}
-				}
-			}
-			
-			float pos = 0;
-			if (Direction == MDBoxDirection.Horizontal) {
-				float center = height / 2;
-				foreach (var child in children) {
-					var rect = child.View.Frame;
-					if (pos != 0)
-						pos += Spacing;
-					pos += child.PadLeft;
-					float ctlCenter = (rect.Height / 2) + child.PadTop;
-					child.View.Frame = new RectangleF (pos, center - ctlCenter, rect.Width, rect.Height);
-					pos += child.PadRight + rect.Width;
-				}
-			} else {
-				float center = width / 2;
-				foreach (var child in children) {
-					var rect = child.View.Frame;
-					if (pos != 0)
-						pos += Spacing;
-					pos += child.PadTop;
-					float ctlCenter = (rect.Width / 2) + child.PadLeft;
-					child.View.Frame = new RectangleF (center - ctlCenter, pos, rect.Width, rect.Height);
-					pos += child.PadBottom + rect.Height;
-				}
-			}
-			
-			var boxView = new NSView (new RectangleF (0, 0, width, height));
-			if (resizable) {
-				boxView.AutoresizesSubviews = true;
-				boxView.AutoresizingMask |= (IsHorizontal?
-					NSViewResizingMask.WidthSizable : NSViewResizingMask.HeightSizable);
-			}
-			foreach (var child in children)
-				boxView.AddSubview (child.View);
-			return boxView;
+			View = unownedView ?? new NSView ();
+			ownsView = unownedView == null;
 		}
 		
-		public IEnumerator<MDBoxChild> GetEnumerator ()
+		public void Layout ()
 		{
-			return children.GetEnumerator ();
+			var request = BeginLayout ();
+			EndLayout (request, PointF.Empty, request.Size);
 		}
 		
-		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator ()
+		public void Layout (SizeF allocation)
 		{
-			return children.GetEnumerator ();
-		}
-		
-		public void Add (MDBoxChild child)
-		{
-			children.Add (child);
+			var request = BeginLayout ();
+			EndLayout (request, PointF.Empty, allocation);
 		}
 		
 		public void Add (NSView view)
 		{
-			children.Add (new MDBoxChild (view));
+			Add (new MDAlignment (view));
 		}
 		
 		public void Add (NSView view, bool autosize)
 		{
-			children.Add (new MDBoxChild (view, autosize));
-		}
-	}
-	
-
-	
-	public enum MDBoxHAlign
-	{
-		Left, Center, Right
-	}
-	
-	public enum MDBoxVAlign
-	{
-		Top, Center, Bottom
-	}
-	
-	public enum MDBoxDirection
-	{
-		Horizontal, Vertical
-	}
-	
-	public class MDBoxChild
-	{
-		public MDBoxChild (NSView view) : this (view, false)
-		{
+			Add (new MDAlignment (view, autosize));
 		}
 		
-		public MDBoxChild (NSView view, bool autosize)
+		public override void EndLayout (LayoutRequest request, PointF origin, SizeF allocation)
 		{
-			this.View = view;
-			if (autosize)
-				((NSControl) view).SizeToFit ();
+			if (ownsView) {
+				View.Frame = new RectangleF (origin, allocation);
+				base.EndLayout (request, PointF.Empty, allocation);
+			} else {
+				base.EndLayout (request, origin, allocation);
+			}
+		}
+		
+		protected override void OnChildAdded (ILayout child)
+		{
+			var l = child as IMDLayout;
+			//if child is viewless, its view may be the same view as this
+			if (l != null && l.View.Handle != View.Handle)
+				View.AddSubview (l.View);
 		}
 		
 		public NSView View { get; private set; }
-	//	public float XAlign { get; set; }
-	//	public float YAlign { get; set; }
-	//	public bool Fill { get; set; }
-		public bool Expand { get; set; }
-		public float MinWidth { get; set; }
-		public float MinHeight { get; set; }
-		public float PadLeft { get; set; }
-		public float PadRight { get; set; }
-		public float PadTop { get; set; }
-		public float PadBottom { get; set; }
+	}
+	
+	class MDAlignment : LayoutAlignment, IMDLayout
+	{
+		public MDAlignment (NSView view) : this (view, false)
+		{
+		}
+		
+		public MDAlignment (NSView view, bool autosize) : base ()
+		{
+			this.View = view;
+			if (autosize) {
+				if (!(view is NSControl))
+					throw new ArgumentException ("Only NSControls can be autosized", "");
+				Autosize ();
+			} else {
+				var size = view.Frame.Size;
+				MinHeight = size.Height;
+				MinWidth = size.Width;
+			}
+		}
+		
+		public override LayoutRequest BeginLayout ()
+		{
+			this.Visible = !View.Hidden;
+			return base.BeginLayout ();
+		}
+		
+		public NSView View { get; private set; }
+		
+		public void Autosize ()
+		{
+			((NSControl)View).SizeToFit ();
+			var size = View.Frame.Size;
+			MinHeight = size.Height;
+			MinWidth = size.Width;
+		}
+		
+		protected override void OnLayoutEnded (RectangleF frame)
+		{
+			View.Frame = frame;
+		}
 	}
 }
