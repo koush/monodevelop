@@ -175,11 +175,13 @@ namespace MonoDevelop.Android
 		myGCHandle = gcHandle;
 	}}
 
+    /*
 	@Override
 	protected void finalize() throws Throwable {{
 	    super.finalize();
 	    MonoBridge.releaseGCHandle(myGCHandle);
 	}}
+	*/
 ";
 
         public string GetClassProxyName(Type type)
