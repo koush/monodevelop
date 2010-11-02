@@ -139,7 +139,7 @@ namespace MonoDevelop.Android
                         if (i < paramInfo.Length - 1)
                             args.Append(",");
                     }
-                    natives.AppendLine("\t@Override");
+                    //natives.AppendLine("\t@Override");
                     natives.AppendLine(string.Format("\t{0} native {1} {2}({3});",
                         pair.Key.IsPublic ? "public" : "protected", GetJLangType(pair.Value.ReturnType), pair.Key.Name, args));
                 }
